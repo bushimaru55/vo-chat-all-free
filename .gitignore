@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.pyc
+node_modules/
+dist/
+.DS_Store
+models/*
+!models/.gitkeep
+.venv/
+tmp/
+*.webm
+*.wav
+*.mp3
+*.m4a
+*.ogg
+rag-data/
+rag-uploads/

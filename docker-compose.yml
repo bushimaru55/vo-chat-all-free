@@ -1,0 +1,80 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./docs:/knowledge:ro
+      - ./rag-uploads:/rag-uploads
+      - ./rag-data:/rag-data
+    env_file:
+      - .env
+    environment:
+      - LLM_API_BASE_URL=http://llm:8080
+      - STT_API_BASE_URL=http://stt:9000
+    depends_on:
+      - llm
+      - stt
+    restart: unless-stopped
+
+  llm:
+    build:
+      context: ./llm
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./models:/models:ro
+    env_file:
+      - .env
+    environment:
+      - LLM_MODEL_PATH=${LLM_MODEL_PATH:-/models/model.gguf}
+      - LLM_CONTEXT_SIZE=${LLM_CONTEXT_SIZE:-2048}
+      - LLM_THREADS=${LLM_THREADS:-4}
+    command:
+      - sh
+      - -c
+      - >-
+        exec llama-server
+        -m "$${LLM_MODEL_PATH}"
+        --host 0.0.0.0
+        --port 8080
+        -c "$${LLM_CONTEXT_SIZE}"
+        -t "$${LLM_THREADS}"
+    restart: unless-stopped
+
+  stt:
+    build:
+      context: ./stt
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./models:/models:ro
+      - ./tmp:/tmp/vo-chat
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  tts:
+    build:
+      context: ./tts
+    profiles:
+      - optional
+    restart: "no"
