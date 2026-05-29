@@ -143,3 +143,17 @@ class RagStore:
     def chunk_count(self) -> int:
         self.refresh_if_needed()
         return self.collection.count()
+
+    def indexed_sources(self) -> set[str]:
+        self.refresh_if_needed()
+        try:
+            result = self.collection.get(include=["metadatas"])
+        except Exception:
+            return set()
+        sources: set[str] = set()
+        for metadata in result.get("metadatas", []):
+            if isinstance(metadata, dict):
+                source = metadata.get("source")
+                if isinstance(source, str) and source:
+                    sources.add(source)
+        return sources

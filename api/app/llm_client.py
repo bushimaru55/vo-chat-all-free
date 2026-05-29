@@ -4,7 +4,12 @@ import httpx
 
 from app.settings import settings
 
-SYSTEM_PROMPT = "あなたは日本語で簡潔に回答するローカルAIアシスタントです。"
+SYSTEM_PROMPT = (
+    "あなたは「おりこうAIコンシェルジュ」に関する質問に答える日本語アシスタントです。"
+    "回答の優先順位は『ユーザー指示 > RAG参照コンテキスト > 一般知識』です。"
+    "RAG参照コンテキストが与えられた場合は、その記載のみを根拠に回答してください。"
+    "コンテキストにない語句・対象者・機能名を追加しないでください。"
+)
 
 
 class LlmClientError(Exception):
@@ -54,9 +59,14 @@ async def check_llm_health() -> dict[str, Any]:
 def _build_rag_message(context_blocks: list[str]) -> str:
     joined = "\n\n".join(context_blocks)
     return (
-        "以下は参照用コンテキストです。回答はこの情報を最優先し、"
-        "数値・設定値はコンテキストの値をそのまま使ってください。"
-        "根拠がない推測はせず、不足時は不足を明記してください。\n\n"
+        "以下は学習データ（RAG検索結果）です。回答はこの引用のみに基づいてください。\n"
+        "【厳守ルール】\n"
+        "1. コンテキストに書かれている語句をそのまま使う（言い換え・類推禁止）\n"
+        "2. 「学習データ」はAI向けの参照データのこと。「学生」「生徒」と混同しない\n"
+        "3. コンテキストにない語（例: 学生、学校、授業）は絶対に使わない\n"
+        "4. 対象は「ユーザー」「お客様」「Webサイト訪問者」など、文脈に書かれた表現のみ\n"
+        "5. 不明な点は推測せず「資料では確認できません」と答える\n"
+        "6. 箇条書きで簡潔に答える\n\n"
         f"{joined}"
     )
 
@@ -72,11 +82,13 @@ async def chat_completion(
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
 
+    temperature = 0.2 if rag_context_blocks else settings.llm_temperature
+    max_tokens = min(settings.llm_max_tokens, 384) if rag_context_blocks else settings.llm_max_tokens
     payload = {
         "model": settings.llm_model,
         "messages": messages,
-        "temperature": settings.llm_temperature,
-        "max_tokens": settings.llm_max_tokens,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
     }
 
     try:

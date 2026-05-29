@@ -43,6 +43,7 @@ class RagDocumentInfo(BaseModel):
     filename: str
     size: int
     uploaded_at: str
+    learned: bool
 
 
 class RagDocumentsResponse(BaseModel):

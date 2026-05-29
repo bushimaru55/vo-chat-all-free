@@ -452,6 +452,10 @@ body {
   gap: 0.5rem;
 }
 
+.file-actions {
+  margin-top: 0.75rem;
+}
+
 .upload-area input[type="file"] {
   position: absolute;
   width: 1px;
@@ -518,6 +522,25 @@ body {
 .document-meta {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.document-status {
+  display: inline-block;
+  width: fit-content;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+}
+
+.document-status.learned {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.18);
+}
+
+.document-status.pending {
+  color: #fcd34d;
+  background: rgba(234, 179, 8, 0.18);
 }
 
 .btn-delete {

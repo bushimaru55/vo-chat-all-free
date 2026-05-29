@@ -138,6 +138,7 @@ export interface RagDocumentInfo {
   filename: string;
   size: number;
   uploaded_at: string;
+  learned: boolean;
 }
 
 export interface RagDocumentsResponse {

@@ -1,8 +1,22 @@
-# vo-chat
+# vo-chat-all-free
 
 Mac 本体へ **追加インストールを行わず**、Docker Compose だけで起動できるローカル AI チャットボットです。
 
-Mac M3 / 16GB 向けの試作を想定していますが、Docker 上では Metal/GPU を十分に活かしにくいため、**CPU 実行・再現性・削除のしやすさ** を優先しています。
+- リポジトリ: https://github.com/bushimaru55/vo-chat-all-free
+- チャット UI: http://localhost:5173
+- 管理画面: http://localhost:5173/admin （ログイン: `admin` / `admin`）
+
+Mac M3 / 16GB 向けの試作を想定しています。Docker 上では Metal/GPU を十分に活かしにくいため、**CPU 実行・再現性・削除のしやすさ** を優先しています。
+
+## 主な機能
+
+| 機能 | 説明 |
+|------|------|
+| テキストチャット | llama.cpp 上の LLM で日本語応答 |
+| 音声入力 | whisper.cpp による文字起こし（base / small / medium 選択可） |
+| 音声会話モード | VAD による無音検知・自動送信 |
+| RAG | ChromaDB + FastEmbed による学習データ検索付き回答 |
+| 管理画面 | 学習データのアップロード・URL/XML 取込・Embedding 作成・プレビュー |
 
 ## 方針
 
@@ -13,13 +27,17 @@ Mac M3 / 16GB 向けの試作を想定していますが、Docker 上では Meta
 ## クイックスタート
 
 ```bash
+git clone https://github.com/bushimaru55/vo-chat-all-free.git
+cd vo-chat-all-free
+
 cp .env.example .env
 # models/ に LLM(GGUF) と STT(ggml-*.bin) を配置し .env を合わせる
+
 docker compose build
 docker compose up
 ```
 
-ブラウザ: http://localhost:5173
+ブラウザで http://localhost:5173 を開きます。
 
 ## 必要なモデル
 
@@ -29,110 +47,137 @@ docker compose up
 LLM_MODEL_PATH=/models/your-model.gguf
 ```
 
+例: `qwen2.5-0.5b-instruct-q4_k_m.gguf`
+
 ### STT (whisper.cpp)
 
 ```env
 STT_MODEL_PATH=/models/ggml-base.bin
 ```
 
-`models/` 例:
+`models/` 配置例:
 
 ```text
 models/
   qwen2.5-0.5b-instruct-q4_k_m.gguf
   ggml-base.bin
+  ggml-small.bin
+  ggml-medium.bin
 ```
 
-## 音声入力機能
-
-vo-chat では、ブラウザの MediaRecorder API で録音し、api コンテナ経由で stt コンテナへ送信し、stt コンテナ内の whisper.cpp で文字起こしします。
+## 音声入力
 
 ```text
 Browser microphone
-  ↓
+  ↓ MediaRecorder
 frontend
   ↓ multipart/form-data
 api
   ↓ multipart/form-data
 stt (whisper.cpp)
-  ↓
-text
-  ↓
-frontend input
+  ↓ text
+frontend
 ```
 
-- 「音声入力」クリックで録音開始
-- 「録音停止」で録音終了
-- 文字起こし完了後、入力欄に反映（自動送信はしない）
-- 最大録音時間: 30 秒
+- 「音声入力」で録音開始 → 「音声停止」で終了
+- 音声会話モード: 2 秒以上無音で自動文字起こし・送信
+- STT モデルは UI から base / small / medium を選択可能
 
-### 推奨 STT モデル
+## RAG（学習データ検索）
 
-Mac M3 / 16GB / 全Docker構成での推奨:
+`api` コンテナは以下を学習ソースとして読み込み、ベクトル検索結果を LLM プロンプトに付与して回答します。
 
-- 最初に試す: `ggml-base.bin`
-- 少し精度を上げる: `ggml-small.bin`
-- 重め: `ggml-medium.bin`
+- `docs/` … 初期ナレッジ（読み取り専用）
+- `rag-uploads/` … 管理画面から追加したファイル
 
-非推奨:
+### 管理画面での操作
 
-- `large-v3`
-- `large-v3-turbo`
+1. http://localhost:5173/admin にアクセス（`admin` / `admin`）
+2. 学習データを追加
+   - **ファイル**: `.md`, `.txt`, `.pdf`, `.pptx`
+   - **URL**: Web ページをスクレイピング
+   - **サイトマップ XML**: 複数 URL を一括取得
+3. **学習データを作成** をクリックして Embedding（インデックス）を生成
+4. 各ドキュメントの **学習済み / 未学習** ステータスを確認
+5. **確認** ボタンで抽出テキストをモーダルプレビュー
 
-理由: 全Docker構成では Metal/Core ML を使えない可能性が高く、CPU 実行になるため。
-
-## API 確認
-
-```bash
-curl http://localhost:8000/health
-curl http://localhost:8000/api/llm/health
-curl http://localhost:9000/health
-curl http://localhost:8000/api/stt/health
-curl http://localhost:8000/api/rag/health
-```
-
-音声ファイルで STT テスト:
-
-```bash
-curl -X POST http://localhost:8000/api/stt \
-  -F "file=@sample.wav"
-```
-
-## RAG（ドキュメント検索）
-
-`api` コンテナは `docs/` を `/knowledge` として読み込み、`FastEmbed` で埋め込みを作成して `ChromaDB`（`/rag-data`）に保存します。質問時はベクトル検索したチャンクを LLM に付与します。
-
-- 対象ファイル: `docs/**/*.md`, `docs/**/*.txt`
-- 設定:
+### 環境変数
 
 ```env
 RAG_ENABLED=true
 RAG_DOCUMENTS_DIR=/knowledge
+RAG_UPLOADS_DIR=/rag-uploads
 RAG_DB_DIR=/rag-data
 RAG_EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 RAG_TOP_K=3
 ```
 
-確認用:
+### 確認用 API
 
 ```bash
 curl http://localhost:8000/api/rag/health
-curl "http://localhost:8000/api/rag/search?q=LLM_MODEL_PATH&top_k=3"
+curl http://localhost:8000/api/rag/documents
+curl "http://localhost:8000/api/rag/search?q=機能について&top_k=3"
+```
+
+## 開発時のメモ
+
+フロントエンドは `docker-compose.yml` でソースをボリュームマウントしており、`frontend/src/` の変更は Vite HMR で即反映されます。
+
+```yaml
+volumes:
+  - ./frontend/src:/app/src
+  - ./frontend/index.html:/app/index.html
+  - ./frontend/vite.config.ts:/app/vite.config.ts
+  - ./frontend/tsconfig.json:/app/tsconfig.json
+```
+
+API の変更を反映する場合:
+
+```bash
+docker compose up -d --build api
+```
+
+## API ヘルスチェック
+
+```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/api/llm/health
+curl http://localhost:8000/api/stt/health
+curl http://localhost:8000/api/rag/health
 ```
 
 ## Docker Desktop メモリ
 
 LLM/STT はメモリを多く使います。Docker Desktop の Resources で **8GB 以上**（16GB 環境なら 10〜12GB 推奨）を割り当ててください。
 
-## 未実装機能
+## ディレクトリ構成
 
-- リアルタイム逐次音声認識
-- 無音検知/VAD
-- サーバー側 TTS（`tts` は雛形）
+```text
+vo-chat-all-free/
+├── api/           # FastAPI（チャット・STT プロキシ・RAG）
+├── frontend/      # React + Vite
+├── llm/           # llama.cpp サーバー
+├── stt/           # whisper.cpp サーバー
+├── docs/          # 初期ナレッジ
+├── rag-uploads/   # 管理画面から追加した学習データ（gitignore）
+├── rag-data/      # ChromaDB インデックス（gitignore）
+├── models/        # LLM / STT モデル（gitignore、.gitkeep のみ）
+└── docker-compose.yml
+```
+
+## 未実装・制限事項
+
+- サーバー側 TTS（`tts` は雛形。ブラウザ `speechSynthesis` を使用）
 - Mac Metal / GPU による高速推論
+- 小型 LLM（0.5B 等）利用時は RAG 回答の繰り返しや言い換えミスが起きる場合あり
 
-## ドキュメント
+## 関連ドキュメント
 
-- [setup.md](docs/setup.md) — 詳細セットアップ
-- [architecture.md](docs/architecture.md) — 構成図
-- [cleanup.md](docs/cleanup.md) — 削除手順
+- [docs/setup.md](docs/setup.md) — 詳細セットアップ
+- [docs/architecture.md](docs/architecture.md) — 構成図
+- [docs/cleanup.md](docs/cleanup.md) — 削除手順
+
+## ライセンス
+
+本リポジトリの利用条件はリポジトリオーナーに従ってください。

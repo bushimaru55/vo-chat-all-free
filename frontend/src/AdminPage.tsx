@@ -283,6 +283,17 @@ export default function AdminPage() {
                     {uploading ? "処理中..." : "ファイルを選択"}
                   </label>
                 </div>
+                <div className="file-actions">
+                  <button
+                    type="button"
+                    className="btn btn-refresh"
+                    onClick={handleRefresh}
+                    disabled={refreshing || uploading}
+                    title="アップロード済みファイルからEmbeddingを作成"
+                  >
+                    {refreshing ? "作成中..." : "学習データを作成"}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -365,6 +376,9 @@ export default function AdminPage() {
                     <span className="document-name">{doc.filename}</span>
                     <span className="document-meta">
                       {formatSize(doc.size)} • {formatDate(doc.uploaded_at)}
+                    </span>
+                    <span className={`document-status ${doc.learned ? "learned" : "pending"}`}>
+                      {doc.learned ? "学習済み" : "未学習"}
                     </span>
                   </div>
                   <div className="document-actions">

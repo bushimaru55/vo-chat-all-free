@@ -77,16 +77,19 @@ SUPPORTED_EXTENSIONS = (".md", ".txt", ".pdf", ".pptx", ".ppt")
 @app.get("/api/rag/documents", response_model=RagDocumentsResponse)
 async def rag_documents() -> RagDocumentsResponse:
     documents: list[RagDocumentInfo] = []
+    indexed_sources = rag_store.indexed_sources()
     if uploads_dir.exists():
         for pattern in ("*.md", "*.txt", "*.pdf", "*.pptx", "*.ppt"):
             for path in uploads_dir.glob(pattern):
                 stat = path.stat()
                 uploaded_at = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
+                source_key = f"{uploads_dir.name}/{path.name}"
                 documents.append(
                     RagDocumentInfo(
                         filename=path.name,
                         size=stat.st_size,
                         uploaded_at=uploaded_at,
+                        learned=source_key in indexed_sources,
                     )
                 )
     documents.sort(key=lambda d: d.uploaded_at, reverse=True)
