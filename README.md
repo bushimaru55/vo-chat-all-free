@@ -1,6 +1,8 @@
 # vo-chat-all-free
 
-Mac 本体へ **追加インストールを行わず**、Docker Compose だけで起動できるローカル AI チャットボットです。
+Mac・Windows本体へ **追加インストールを行わず**、Docker Compose だけで起動できるローカル AI チャットボットです。
+サーバーへの展開ももちろん可能です。（スペック用確認）
+とにかくお金をかけずにAI音声チャットボットを作るというテーマで開発してます・・・・
 
 - リポジトリ: https://github.com/bushimaru55/vo-chat-all-free
 - チャット UI: http://localhost:5173
